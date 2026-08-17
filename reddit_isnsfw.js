@@ -1,11 +1,20 @@
 let body = $response.body;
-if (typeof body === "string" && body.length > 0) {
+
+if (typeof body !== "string" || body.length === 0) {
+  $done({});
+} else {
+  console.log("[reddit_script] v4 running, bodyLen=" + body.length);
+
+  let removedCount = 0;
+  let totalCount = 0;
+
   try {
     let json = JSON.parse(body);
-    let posts = (json && json.data && json.data.postsInfoByIds) ? json.data.postsInfoByIds : null;
+    let posts = json && json.data && json.data.postsInfoByIds;
 
     if (posts && Array.isArray(posts)) {
-      let filtered = [];
+      totalCount = posts.length;
+      let kept = [];
       for (let i = 0; i < posts.length; i++) {
         let post = posts[i];
         if (!post) continue;
@@ -15,16 +24,20 @@ if (typeof body === "string" && body.length > 0) {
         if (post.isCommercialCommunication === true) isAd = true;
         if (post.promotedCommunityPost) isAd = true;
         if (post.adSupplementaryTextRichtext) isAd = true;
-        if (post.callToAction) isAd = true;
-        if (typeof post.__typename === "string" && /^(Promoted|Ad)/.test(post.__typename)) isAd = true;
+        if (typeof post.__typename === "string" && /^(Promoted|Ad)/i.test(post.__typename)) isAd = true;
 
-        if (!isAd) filtered.push(post);
+        if (isAd) {
+          removedCount++;
+        } else {
+          kept.push(post);
+        }
       }
-      json.data.postsInfoByIds = filtered;
+      json.data.postsInfoByIds = kept;
       body = JSON.stringify(json);
     }
+    console.log("[reddit_filter] total=" + totalCount + " removed=" + removedCount);
   } catch (e) {
-    console.log("[reddit_filter_ad] error: " + e);
+    console.log("[reddit_filter_ad] error, skip: " + e);
   }
 
   try {
@@ -34,6 +47,4 @@ if (typeof body === "string" && body.length > 0) {
   }
 
   $done({ body: body });
-} else {
-  $done({});
 }
